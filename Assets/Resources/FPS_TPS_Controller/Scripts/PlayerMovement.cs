@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-
+using Random = UnityEngine.Random;
 
     public sealed class PlayerMovement : MonoBehaviour
     {
@@ -36,10 +36,11 @@ using UnityEngine.UI;
         private bool _sprinting = false;
         private bool _initialized = false;
         private AudioClip _jumpClip;
+        private AudioClip _footstepClip;
         private Vector3 _lastPos;
         private bool _hasTriedMove;
-        private int _stepCounter;
-        private int _stepResetValue = 15;
+        private float _stepCounter = 0;
+        private const float STEP_RESET_VALUE = 1;
         private bool shouldRefreshCullMask = false;
 
         void Start()
@@ -74,6 +75,11 @@ using UnityEngine.UI;
                 var jumpClip = Resources.Load("FPS_TPS_Controller/Sounds/jump");
                 _jumpClip = jumpClip as AudioClip;
             }
+            if(_footstepClip == null)
+            {
+                var stepClip = Resources.Load("FPS_TPS_Controller/Sounds/footstep");
+                _footstepClip = stepClip as AudioClip;
+            }
 
             _mouseLook.LockCursor = true;
             _initialized = true;
@@ -86,6 +92,7 @@ using UnityEngine.UI;
                 _char.Move(movement * Time.deltaTime);
                 _hasTriedMove = true;
                 _lastPos = transform.position;
+                if(_grounded) { UpdateFootsteps(); }
             }
             else
             {
@@ -104,6 +111,7 @@ using UnityEngine.UI;
             {
                 _crouched = true;
             }
+
             // jumping also resets crouching; can't just check if control is held since that would override jump's crouch check
             else if(Input.GetKeyUp(KeyCode.LeftControl))
             {
@@ -120,7 +128,7 @@ using UnityEngine.UI;
 
             _mouseLook.CameraUpdate(_firstPerson);
             UpdateJump();
-
+            
             if(shouldRefreshCullMask)
             {
                 // Set a cull mask to selectively cull by what is specified in MouseLook, or cull nothing = draw everything
@@ -220,14 +228,14 @@ using UnityEngine.UI;
 
             _crouched = false;
 
-            PlaySound(_jumpClip, 0.5f, transform.position);
+            PlayMovementSound(_jumpClip, 0.5f, transform.position, 1.2f);
 
             _grounded = false;
         
             _curVelocity.y = UseCustomMovementValues ? JumpHeight : JUMP_HEIGHT;
         }
 
-        void PlaySound(AudioClip clip, float volume = 0.8f, Vector3? position = null, float pitch = 1)
+        void PlayMovementSound(AudioClip clip, float volume = 0.8f, Vector3? position = null, float pitch = 1)
         {
             if(clip == null) { return; }
 
@@ -238,7 +246,7 @@ using UnityEngine.UI;
 
             source.clip = clip;
             source.volume = volume;
-            source.dopplerLevel = 0;
+            source.spatialBlend = 0.5f;
             source.Play();
 
             Destroy(audio, clip.length + 0.15f);
@@ -246,11 +254,13 @@ using UnityEngine.UI;
 
         void UpdateFootsteps()
         {
-            _stepCounter++;
+            var multiplier = _crouched ? 2.3f : _sprinting ? 3.3f : 2.8f;
+            _stepCounter += multiplier * Time.deltaTime;
 
-            if(_stepCounter < _stepResetValue) { return; }
+            if(_stepCounter < STEP_RESET_VALUE) { return; }
 
-            // play footstep sound
+            var randPitch = Random.Range(0.85f, 0.9f);
+            PlayMovementSound(_footstepClip, 1, transform.position, randPitch);
 
             _stepCounter = 0;
         }
